@@ -1,0 +1,29 @@
+{
+  "login": {
+    "url": "http://121.40.111.236:3033/login",
+    "usernameSelector": "input.el-input__inner[placeholder=\"请输入学号/工号\"]",
+    "passwordSelector": "input.el-input__inner[placeholder=\"请输入密码\"]",
+    "submitSelector": "role=button[name=/登\\s*录/]"
+  },
+  "personal": {
+    "url": "http://121.40.111.236:3033/group/today",
+    "alreadyDoneSelector": ".col-check .el-tag__content:has-text(\"已打卡\")",
+    "submitSequence": [
+      { "selector": "role=button[name=个人打卡]" },
+      { "selector": "role=button[name=在校]", "waitMs": 500 },
+      { "selector": "role=button[name=提交]" }
+    ],
+    "successSelector": "text=打卡成功"
+  },
+  "leader": {
+    "url": "http://121.40.111.236:3033/group/today",
+    "alreadyDoneSelector": "text=今日打卡已提交至班委",
+    "submitSelector": "role=button[name=提交本组打卡结果]",
+    "confirmSelector": "role=button[name=确认提交]",
+    "successSelector": "text=提交成功"
+  },
+  "auth": {
+    "loggedInSelector": "role=button[name=消息]",
+    "loginFailedPattern": "信息有误|账号不存在|invalid|incorrect"
+  }
+}

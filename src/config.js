@@ -1,0 +1,111 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { resolveSubmitActions } from './automation/submit-actions.js';
+
+const REQUIRED_ENV = [
+  'TARGET_URL',
+  'CHECKIN_USERNAME',
+  'CHECKIN_PASSWORD',
+  'FEISHU_WEBHOOK_URL',
+];
+
+function requireEnv(env, key) {
+  const value = env[key];
+  if (!value || String(value).trim() === '') {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return String(value).trim();
+}
+
+function readInt(env, key, defaultValue) {
+  const raw = env[key];
+  if (!raw) return defaultValue;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid integer for ${key}: ${raw}`);
+  }
+  return value;
+}
+
+function assertPositive(value, key) {
+  if (value <= 0) {
+    throw new Error(`${key} must be greater than 0`);
+  }
+}
+
+async function readSiteConfig(siteConfigPath) {
+  const raw = await fs.readFile(siteConfigPath, 'utf8');
+  const site = JSON.parse(raw);
+
+  const checks = [
+    ['login.url', site?.login?.url],
+    ['login.usernameSelector', site?.login?.usernameSelector],
+    ['login.passwordSelector', site?.login?.passwordSelector],
+    ['login.submitSelector', site?.login?.submitSelector],
+    ['personal.url', site?.personal?.url],
+    ['personal.alreadyDoneSelector', site?.personal?.alreadyDoneSelector],
+    ['leader.url', site?.leader?.url],
+    ['leader.alreadyDoneSelector', site?.leader?.alreadyDoneSelector],
+  ];
+
+  for (const [label, value] of checks) {
+    if (!value) {
+      throw new Error(`site config missing field: ${label}`);
+    }
+  }
+
+  resolveSubmitActions(site?.personal, 'personal');
+  resolveSubmitActions(site?.leader, 'leader');
+
+  return site;
+}
+
+export async function buildConfig({ env = process.env, cwd = process.cwd() } = {}) {
+  for (const key of REQUIRED_ENV) {
+    requireEnv(env, key);
+  }
+
+  const timezone = (env.TIMEZONE || 'Asia/Shanghai').trim();
+
+  const statePath = path.resolve(cwd, env.STATE_PATH || './runtime/state.json');
+  const screenshotDir = path.resolve(cwd, env.SCREENSHOT_DIR || './runtime/screenshots');
+  const logPath = path.resolve(cwd, env.LOG_PATH || './runtime/app.log');
+  const siteConfigPath = path.resolve(cwd, env.SITE_CONFIG_PATH || './config/site-config.json');
+
+  const site = await readSiteConfig(siteConfigPath);
+
+  const maxAttempts = readInt(env, 'MAX_ATTEMPTS', 3);
+  const backoffMinMs = readInt(env, 'BACKOFF_MIN_MS', 30_000);
+  const backoffMaxMs = readInt(env, 'BACKOFF_MAX_MS', 90_000);
+  const browserTimeoutMs = readInt(env, 'BROWSER_TIMEOUT_MS', 20_000);
+
+  assertPositive(maxAttempts, 'MAX_ATTEMPTS');
+  assertPositive(browserTimeoutMs, 'BROWSER_TIMEOUT_MS');
+  if (backoffMaxMs < backoffMinMs) {
+    throw new Error('BACKOFF_MAX_MS must be greater than or equal to BACKOFF_MIN_MS');
+  }
+
+  return {
+    targetUrl: requireEnv(env, 'TARGET_URL'),
+    username: requireEnv(env, 'CHECKIN_USERNAME'),
+    password: requireEnv(env, 'CHECKIN_PASSWORD'),
+    feishuWebhookUrl: requireEnv(env, 'FEISHU_WEBHOOK_URL'),
+    timezone,
+    statePath,
+    screenshotDir,
+    logPath,
+    siteConfigPath,
+    site,
+    retry: {
+      maxAttempts,
+      backoffMinMs,
+      backoffMaxMs,
+    },
+    browser: {
+      headless: (env.HEADLESS || 'true').toLowerCase() !== 'false',
+      timeoutMs: browserTimeoutMs,
+      slowMoMs: readInt(env, 'BROWSER_SLOW_MO_MS', 0),
+    },
+  };
+}

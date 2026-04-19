@@ -1,0 +1,17 @@
+{
+  "name": "daily-checkin",
+  "version": "0.1.0",
+  "description": "自动签到服务（Node.js + Playwright）",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

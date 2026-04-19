@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Daily Check-in Automation at 20:20
+
+[Timer]
+OnCalendar=*-*-* 20:20:00
+Persistent=true
+Unit=daily-checkin.service
+
+[Install]
+WantedBy=timers.target
