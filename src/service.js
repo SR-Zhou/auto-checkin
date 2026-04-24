@@ -1,5 +1,4 @@
 import { checkCheckinCompleted, runCheckinWithRetries } from './automation/checkin-runner.js';
-import { StateStore } from './infra/state-store.js';
 import { buildFeishuText, sendFeishuText } from './notify/feishu.js';
 import { todayKey } from './domain/time-window.js';
 
@@ -28,42 +27,13 @@ async function notify(logger, config, { title, runId, status, details }) {
 }
 
 export async function startService({ config, logger }) {
-  const store = new StateStore(config.statePath);
   const dateKey = todayKey(new Date());
-  let state = await store.ensureToday(dateKey);
+  const runId = makeRunId(dateKey);
 
   await logger.info('service_start', {
     mode: 'one_shot',
     timezone: config.timezone,
   });
-
-  if (state.status === 'success') {
-    const runId = state.runId || makeRunId(state.date);
-    const summary = state.summary || { personal: 'already_done', leader: 'already_done' };
-
-    await notify(logger, config, {
-      title: '签到已完成（跳过执行）',
-      runId,
-      status: 'success',
-      details: [
-        `个人打卡: ${summary.personal}`,
-        `小组长打卡: ${summary.leader}`,
-      ],
-    });
-
-    await logger.info('workflow_finished', {
-      run_id: runId,
-      reason: 'state_already_success',
-    });
-
-    return {
-      async stop() {
-        await logger.info('service_stop', {});
-      },
-    };
-  }
-
-  const runId = makeRunId(state.date);
 
   try {
     const precheck = await checkCheckinCompleted({
@@ -73,11 +43,6 @@ export async function startService({ config, logger }) {
     });
 
     if (precheck.completed) {
-      await store.markSuccess({
-        runId,
-        summary: precheck.summary,
-      });
-
       await notify(logger, config, {
         title: '签到已完成（无需执行）',
         runId,
@@ -106,8 +71,6 @@ export async function startService({ config, logger }) {
     });
   }
 
-  await store.markRunning({ runId });
-
   try {
     const result = await runCheckinWithRetries({
       config,
@@ -116,7 +79,6 @@ export async function startService({ config, logger }) {
     });
 
     if (result.status === 'success') {
-      await store.markSuccess({ runId, summary: result.summary });
       await notify(logger, config, {
         title: '签到成功',
         runId,
@@ -132,11 +94,6 @@ export async function startService({ config, logger }) {
         reason: 'run_success',
       });
     } else {
-      await store.markFailed({
-        runId,
-        reason: result.error?.message || '未知失败',
-      });
-
       await notify(logger, config, {
         title: '签到失败',
         runId,
@@ -154,11 +111,6 @@ export async function startService({ config, logger }) {
       });
     }
   } catch (error) {
-    await store.markFailed({
-      runId,
-      reason: error.message,
-    });
-
     await notify(logger, config, {
       title: '签到失败（服务异常）',
       runId,

@@ -1,9 +1,11 @@
 export class RecoverableError extends Error {
-  constructor(message, cause) {
+  constructor(message, cause, options = {}) {
     super(message);
     this.name = 'RecoverableError';
     this.kind = 'recoverable';
     this.cause = cause;
+    this.retryable = Boolean(options.retryable);
+    this.reason = options.reason || null;
   }
 }
 
@@ -17,7 +19,7 @@ export class FatalError extends Error {
 }
 
 export function isRecoverable(error) {
-  return Boolean(error?.kind === 'recoverable');
+  return Boolean(error?.kind === 'recoverable' && error?.retryable === true);
 }
 
 export function normalizeError(error) {

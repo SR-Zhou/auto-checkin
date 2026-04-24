@@ -10,6 +10,8 @@ const REQUIRED_ENV = [
   'FEISHU_WEBHOOK_URL',
 ];
 
+const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
+
 function requireEnv(env, key) {
   const value = env[key];
   if (!value || String(value).trim() === '') {
@@ -61,24 +63,72 @@ async function readSiteConfig(siteConfigPath) {
   return site;
 }
 
+function assertValidTargetUrl(targetUrl) {
+  try {
+    // Validate early to make site URL resolution deterministic.
+    new URL(targetUrl);
+  } catch {
+    throw new Error(`Invalid TARGET_URL: ${targetUrl}`);
+  }
+}
+
+function resolveSiteUrl({ targetUrl, value, label }) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`site config missing field: ${label}`);
+  }
+
+  const raw = value.trim();
+  if (ABSOLUTE_URL_PATTERN.test(raw)) {
+    return raw;
+  }
+
+  try {
+    return new URL(raw, targetUrl).toString();
+  } catch {
+    throw new Error(`site config invalid url field: ${label}`);
+  }
+}
+
+function applyTargetUrlToSite({ site, targetUrl }) {
+  site.login.url = resolveSiteUrl({
+    targetUrl,
+    value: site.login.url,
+    label: 'login.url',
+  });
+  site.personal.url = resolveSiteUrl({
+    targetUrl,
+    value: site.personal.url,
+    label: 'personal.url',
+  });
+  site.leader.url = resolveSiteUrl({
+    targetUrl,
+    value: site.leader.url,
+    label: 'leader.url',
+  });
+}
+
 export async function buildConfig({ env = process.env, cwd = process.cwd() } = {}) {
   for (const key of REQUIRED_ENV) {
     requireEnv(env, key);
   }
 
+  const targetUrl = requireEnv(env, 'TARGET_URL');
+  assertValidTargetUrl(targetUrl);
+
   const timezone = (env.TIMEZONE || 'Asia/Shanghai').trim();
 
-  const statePath = path.resolve(cwd, env.STATE_PATH || './runtime/state.json');
   const screenshotDir = path.resolve(cwd, env.SCREENSHOT_DIR || './runtime/screenshots');
   const logPath = path.resolve(cwd, env.LOG_PATH || './runtime/app.log');
   const siteConfigPath = path.resolve(cwd, env.SITE_CONFIG_PATH || './config/site-config.json');
 
   const site = await readSiteConfig(siteConfigPath);
+  applyTargetUrlToSite({ site, targetUrl });
 
   const maxAttempts = readInt(env, 'MAX_ATTEMPTS', 3);
   const backoffMinMs = readInt(env, 'BACKOFF_MIN_MS', 30_000);
   const backoffMaxMs = readInt(env, 'BACKOFF_MAX_MS', 90_000);
   const browserTimeoutMs = readInt(env, 'BROWSER_TIMEOUT_MS', 20_000);
+  const actionBufferMs = readInt(env, 'CHECKIN_ACTION_BUFFER_MS', 1500);
 
   assertPositive(maxAttempts, 'MAX_ATTEMPTS');
   assertPositive(browserTimeoutMs, 'BROWSER_TIMEOUT_MS');
@@ -87,12 +137,11 @@ export async function buildConfig({ env = process.env, cwd = process.cwd() } = {
   }
 
   return {
-    targetUrl: requireEnv(env, 'TARGET_URL'),
+    targetUrl,
     username: requireEnv(env, 'CHECKIN_USERNAME'),
     password: requireEnv(env, 'CHECKIN_PASSWORD'),
     feishuWebhookUrl: requireEnv(env, 'FEISHU_WEBHOOK_URL'),
     timezone,
-    statePath,
     screenshotDir,
     logPath,
     siteConfigPath,
@@ -106,6 +155,7 @@ export async function buildConfig({ env = process.env, cwd = process.cwd() } = {
       headless: (env.HEADLESS || 'true').toLowerCase() !== 'false',
       timeoutMs: browserTimeoutMs,
       slowMoMs: readInt(env, 'BROWSER_SLOW_MO_MS', 0),
+      actionBufferMs,
     },
   };
 }

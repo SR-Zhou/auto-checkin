@@ -132,10 +132,21 @@ async function waitCheckinOutcome({
     return 'submitted';
   }
 
-  throw new RecoverableError('提交后未检测到成功状态');
+  throw new RecoverableError('提交后未检测到成功状态', undefined, {
+    retryable: true,
+    reason: 'checkin_outcome_missing',
+  });
 }
 
-async function runCheckinStep({ page, runId, logger, siteNode, stepName, browserTimeoutMs }) {
+async function runCheckinStep({
+  page,
+  runId,
+  logger,
+  siteNode,
+  stepName,
+  browserTimeoutMs,
+  actionBufferMs,
+}) {
   await gotoPage(page, siteNode.url, stepName);
 
   if (await selectorVisible(page, siteNode.alreadyDoneSelector, 1500)) {
@@ -148,6 +159,10 @@ async function runCheckinStep({ page, runId, logger, siteNode, stepName, browser
   for (let i = 0; i < submitActions.length; i += 1) {
     const action = submitActions[i];
     const actionLabel = `${stepName}.submitSequence[${i}]`;
+
+    if (actionBufferMs > 0) {
+      await sleep(actionBufferMs);
+    }
 
     await expectVisible(page, action.selector, `${actionLabel}.selector`, browserTimeoutMs);
     await page.click(action.selector);
@@ -168,6 +183,10 @@ async function runCheckinStep({ page, runId, logger, siteNode, stepName, browser
     if (action.waitMs && action.waitMs > 0) {
       await sleep(action.waitMs);
     }
+  }
+
+  if (actionBufferMs > 0) {
+    await sleep(actionBufferMs);
   }
 
   const outcome = await waitCheckinOutcome({
@@ -220,6 +239,7 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
       siteNode: config.site.personal,
       stepName: 'personal',
       browserTimeoutMs: config.browser.timeoutMs,
+      actionBufferMs: config.browser.actionBufferMs,
     });
 
     const leader = await runCheckinStep({
@@ -229,6 +249,7 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
       siteNode: config.site.leader,
       stepName: 'leader',
       browserTimeoutMs: config.browser.timeoutMs,
+      actionBufferMs: config.browser.actionBufferMs,
     });
 
     return {
@@ -263,7 +284,7 @@ export async function runCheckinWithRetries({
   const result = await executeWithRetry({
     runAttempt: ({ attempt }) => runSingleAttempt({ config, runId, attempt, logger }),
     isRecoverable,
-    maxAttempts: config.retry.maxAttempts,
+    maxAttempts: Math.min(config.retry.maxAttempts, 3),
     backoffMs: () =>
       computeBackoffMs({
         minMs: config.retry.backoffMinMs,

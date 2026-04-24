@@ -1,8 +1,8 @@
 # 自动签到服务（Node.js + Playwright）
 
 本项目是一次性执行模型：
-- 启动后先做状态检查
-- 若今日已完成签到，直接发飞书通知并退出
+- 启动后先做页面预检查（是否已完成签到）
+- 若页面显示今日已完成签到，直接发飞书通知并退出
 - 若未完成，执行登录 -> 个人打卡 -> 小组长打卡
 - 执行结束后退出
 
@@ -25,11 +25,9 @@ cp .env.example .env
 
 2. 站点选择器配置：
 
-```bash
-cp config/site-config.example.json config/site-config.json
-```
+直接按页面实际情况修改 `config/site-config.json`。
 
-3. 按页面实际情况修改 `config/site-config.json`。
+`config/site-config.json` 中的 `url` 建议填写相对路径（例如 `/login`），程序会使用 `.env` 中的 `TARGET_URL` 自动拼接完整地址。
 
 `personal/leader` 支持两种提交方式（二选一）：
 - `submitSelector`：单按钮提交
@@ -58,10 +56,10 @@ npm run start
 - `BACKOFF_MAX_MS=90000`
 - `HEADLESS=true`
 - `BROWSER_TIMEOUT_MS=20000`
+- `CHECKIN_ACTION_BUFFER_MS=1500`（每个提交动作前后的缓冲等待）
 
 ## 5. 运行产物
 
-- `runtime/state.json`
 - `runtime/app.log`
 - `runtime/screenshots/`
 

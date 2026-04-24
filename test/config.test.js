@@ -10,18 +10,18 @@ async function createSiteConfig(tmpDir, overrides = {}) {
   const sitePath = path.join(tmpDir, 'site-config.json');
   const data = {
     login: {
-      url: 'https://demo.example.com/login',
+      url: '/login',
       usernameSelector: '#username',
       passwordSelector: '#password',
       submitSelector: 'button[type="submit"]'
     },
     personal: {
-      url: 'https://demo.example.com/personal',
+      url: '/personal',
       alreadyDoneSelector: '.personal-done',
       submitSelector: '.personal-submit',
     },
     leader: {
-      url: 'https://demo.example.com/leader',
+      url: '/leader',
       alreadyDoneSelector: '.leader-done',
       submitSelector: '.leader-submit'
     },
@@ -63,8 +63,13 @@ test('buildConfig should parse required env and site config', async () => {
 
   assert.equal(config.targetUrl, 'https://demo.example.com');
   assert.equal(config.timezone, 'Asia/Shanghai');
+  assert.equal(config.site.login.url, 'https://demo.example.com/login');
+  assert.equal(config.site.personal.url, 'https://demo.example.com/personal');
+  assert.equal(config.site.leader.url, 'https://demo.example.com/leader');
   assert.equal(config.site.login.usernameSelector, '#username');
+  assert.equal('statePath' in config, false);
   assert.equal(config.retry.maxAttempts, 3);
+  assert.equal(config.browser.actionBufferMs, 1500);
 });
 
 test('buildConfig should fail when required env is missing', async () => {
@@ -123,4 +128,22 @@ test('buildConfig should fail when no submit selector and no submitSequence', as
       },
     }),
   /site config missing submit action: personal/);
+});
+
+test('buildConfig should parse CHECKIN_ACTION_BUFFER_MS override', async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'daily-checkin-config-'));
+  const sitePath = await createSiteConfig(tmpDir);
+
+  const config = await buildConfig({
+    env: {
+      TARGET_URL: 'https://demo.example.com',
+      CHECKIN_USERNAME: 'u1',
+      CHECKIN_PASSWORD: 'p1',
+      FEISHU_WEBHOOK_URL: 'https://open.feishu.cn/hook/abc',
+      SITE_CONFIG_PATH: sitePath,
+      CHECKIN_ACTION_BUFFER_MS: '2800',
+    },
+  });
+
+  assert.equal(config.browser.actionBufferMs, 2800);
 });
