@@ -7,7 +7,6 @@ const REQUIRED_ENV = [
   'TARGET_URL',
   'CHECKIN_USERNAME',
   'CHECKIN_PASSWORD',
-  'FEISHU_WEBHOOK_URL',
 ];
 
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
@@ -140,7 +139,6 @@ export async function buildConfig({ env = process.env, cwd = process.cwd() } = {
     targetUrl,
     username: requireEnv(env, 'CHECKIN_USERNAME'),
     password: requireEnv(env, 'CHECKIN_PASSWORD'),
-    feishuWebhookUrl: requireEnv(env, 'FEISHU_WEBHOOK_URL'),
     timezone,
     screenshotDir,
     logPath,

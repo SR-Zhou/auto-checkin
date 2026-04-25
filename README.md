@@ -2,7 +2,7 @@
 
 本项目是一次性执行模型：
 - 启动后先做页面预检查（是否已完成签到）
-- 若页面显示今日已完成签到，直接发飞书通知并退出
+- 若页面显示今日已完成签到，记录日志并退出
 - 若未完成，执行登录 -> 个人打卡 -> 小组长打卡
 - 执行结束后退出
 
@@ -47,7 +47,6 @@ npm run start
 - `TARGET_URL`
 - `CHECKIN_USERNAME`
 - `CHECKIN_PASSWORD`
-- `FEISHU_WEBHOOK_URL`
 
 可选默认值：
 - `TIMEZONE=Asia/Shanghai`
