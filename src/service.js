@@ -25,7 +25,6 @@ export async function startService({ config, logger }) {
     if (precheck.completed) {
       await logger.info('precheck_completed', {
         run_id: runId,
-        personal: precheck.summary.personal,
         leader: precheck.summary.leader,
       });
 
@@ -57,7 +56,6 @@ export async function startService({ config, logger }) {
     if (result.status === 'success') {
       await logger.info('checkin_success', {
         run_id: runId,
-        personal: result.summary.personal,
         leader: result.summary.leader,
       });
 

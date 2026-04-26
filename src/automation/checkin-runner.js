@@ -158,11 +158,6 @@ async function runCheckinStep({
   await logger.info('checkin_step_navigating', { run_id: runId, step: stepName, url: siteNode.url });
   await gotoPage(page, siteNode.url, stepName);
 
-  if (await selectorVisible(page, siteNode.alreadyDoneSelector, 1500)) {
-    await logger.info('checkin_already_done', { run_id: runId, step: stepName });
-    return { step: stepName, status: 'already_done' };
-  }
-
   const submitActions = resolveSubmitActions(siteNode, stepName);
 
   for (let i = 0; i < submitActions.length; i += 1) {
@@ -222,6 +217,7 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   await logger.info('attempt_browser_launched', { run_id: runId, attempt });
 
@@ -291,7 +287,7 @@ export async function runCheckinWithRetries({
   const result = await executeWithRetry({
     runAttempt: ({ attempt }) => runSingleAttempt({ config, runId, attempt, logger }),
     isRecoverable,
-    maxAttempts: Math.min(config.retry.maxAttempts, 3),
+    maxAttempts: 1, // Fail immediately without retry
     backoffMs: () =>
       computeBackoffMs({
         minMs: config.retry.backoffMinMs,
@@ -314,14 +310,12 @@ export async function runCheckinWithRetries({
   await logger.info('run_success', {
     run_id: runId,
     attempts: result.attempts,
-    personal: result.result.personal.status,
     leader: result.result.leader.status,
   });
 
   return {
     ...result,
     summary: {
-      personal: result.result.personal.status,
       leader: result.result.leader.status,
     },
   };
@@ -337,6 +331,7 @@ export async function checkCheckinCompleted({
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   await logger.info('browser_launched', { run_id: runId });
 
@@ -347,13 +342,6 @@ export async function checkCheckinCompleted({
 
     await ensureLoggedIn({ page, config, logger, runId });
 
-    const personal = await checkStepDoneOnly({
-      page,
-      runId,
-      logger,
-      siteNode: config.site.personal,
-      stepName: 'personal',
-    });
     const leader = await checkStepDoneOnly({
       page,
       runId,
@@ -363,9 +351,8 @@ export async function checkCheckinCompleted({
     });
 
     return {
-      completed: personal.status === 'already_done' && leader.status === 'already_done',
+      completed: leader.status === 'already_done',
       summary: {
-        personal: personal.status,
         leader: leader.status,
       },
     };
