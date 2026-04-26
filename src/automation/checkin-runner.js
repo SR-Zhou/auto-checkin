@@ -217,7 +217,6 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   await logger.info('attempt_browser_launched', { run_id: runId, attempt });
 
@@ -331,7 +330,6 @@ export async function checkCheckinCompleted({
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   await logger.info('browser_launched', { run_id: runId });
 
