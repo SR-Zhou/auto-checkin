@@ -45,7 +45,6 @@ async function readSiteConfig(siteConfigPath) {
     ['login.passwordSelector', site?.login?.passwordSelector],
     ['login.submitSelector', site?.login?.submitSelector],
     ['personal.url', site?.personal?.url],
-    ['personal.alreadyDoneSelector', site?.personal?.alreadyDoneSelector],
     ['leader.url', site?.leader?.url],
     ['leader.alreadyDoneSelector', site?.leader?.alreadyDoneSelector],
   ];
