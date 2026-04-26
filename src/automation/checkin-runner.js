@@ -63,6 +63,7 @@ async function ensureLoggedIn({ page, config, logger, runId }) {
   const { site, username, password, browser } = config;
   const auth = site.auth || {};
 
+  await logger.info('login_navigating', { run_id: runId });
   await gotoPage(page, site.login.url, 'login');
 
   if (await selectorVisible(page, auth.loggedInSelector, 1500)) {
@@ -74,10 +75,12 @@ async function ensureLoggedIn({ page, config, logger, runId }) {
   await expectVisible(page, site.login.passwordSelector, 'login.passwordSelector', browser.timeoutMs);
   await expectVisible(page, site.login.submitSelector, 'login.submitSelector', browser.timeoutMs);
 
+  await logger.info('login_submitting_form', { run_id: runId });
   await page.fill(site.login.usernameSelector, username);
   await page.fill(site.login.passwordSelector, password);
   await page.click(site.login.submitSelector);
 
+  await logger.info('login_waiting_network', { run_id: runId });
   await page.waitForLoadState('networkidle', { timeout: browser.timeoutMs }).catch(() => {});
 
   if (await selectorVisible(page, auth.loginErrorSelector, 1200)) {
@@ -117,11 +120,16 @@ async function waitCheckinOutcome({
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    if (await selectorVisible(page, alreadyDoneSelector, 400)) {
+    const [isAlreadyDone, isSuccess] = await Promise.all([
+      selectorVisible(page, alreadyDoneSelector, 400),
+      successSelector ? selectorVisible(page, successSelector, 400) : Promise.resolve(false),
+    ]);
+
+    if (isAlreadyDone) {
       return 'already_done';
     }
 
-    if (successSelector && (await selectorVisible(page, successSelector, 400))) {
+    if (isSuccess) {
       return 'submitted';
     }
 
@@ -147,6 +155,7 @@ async function runCheckinStep({
   browserTimeoutMs,
   actionBufferMs,
 }) {
+  await logger.info('checkin_step_navigating', { run_id: runId, step: stepName, url: siteNode.url });
   await gotoPage(page, siteNode.url, stepName);
 
   if (await selectorVisible(page, siteNode.alreadyDoneSelector, 1500)) {
@@ -185,10 +194,6 @@ async function runCheckinStep({
     }
   }
 
-  if (actionBufferMs > 0) {
-    await sleep(actionBufferMs);
-  }
-
   const outcome = await waitCheckinOutcome({
     page,
     alreadyDoneSelector: siteNode.alreadyDoneSelector,
@@ -213,10 +218,12 @@ async function checkStepDoneOnly({ page, runId, logger, siteNode, stepName }) {
 }
 
 async function runSingleAttempt({ config, runId, attempt, logger }) {
+  await logger.info('attempt_browser_launching', { run_id: runId, attempt });
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
   });
+  await logger.info('attempt_browser_launched', { run_id: runId, attempt });
 
   let page = null;
 
@@ -325,10 +332,13 @@ export async function checkCheckinCompleted({
   runId,
   logger,
 }) {
+  await logger.info('precheck_start', { run_id: runId });
+  await logger.info('browser_launching', { run_id: runId });
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
   });
+  await logger.info('browser_launched', { run_id: runId });
 
   try {
     const context = await browser.newContext();
