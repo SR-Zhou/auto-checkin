@@ -1,8 +1,8 @@
 [Unit]
-Description=Run Daily Check-in Automation at 20:20
+Description=Run Daily Check-in Automation at 22:22
 
 [Timer]
-OnCalendar=*-*-* 20:20:00
+OnCalendar=*-*-* 22:22:00
 Persistent=true
 Unit=daily-checkin.service
 

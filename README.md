@@ -63,14 +63,14 @@ npm start
 | `CHECKIN_USERNAME` | 登录用户名/学号 |
 | `CHECKIN_PASSWORD` | 登录密码 |
 
-### 可选（=默认值）
+### 可选
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `TIMEZONE` | `Asia/Shanghai` | 时区 |
 | `HEADLESS` | `true` | 无头模式，`false` 可见浏览器窗口 |
-| `MOBILE_EMULATION` | `false` | 模拟 Android Chrome（User-Agent + touch 事件），绕过鼠标检测 |
-| `MAX_ATTEMPTS` | `3` | 最大重试次数 |
+| `MOBILE_EMULATION` | `true` | 模拟 Android Chrome（User-Agent + touch 事件），绕过鼠标检测 |
+| `MAX_ATTEMPTS` | `1` | 最大重试次数 |
 | `BACKOFF_MIN_MS` | `30000` | 重试最小退避时间(ms) |
 | `BACKOFF_MAX_MS` | `90000` | 重试最大退避时间(ms) |
 | `BROWSER_TIMEOUT_MS` | `20000` | 浏览器等待超时(ms) |
