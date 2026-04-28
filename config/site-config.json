@@ -8,11 +8,12 @@
   "personal": {
     "url": "/group/today",
     "submitSequence": [
-      { "selector": "role=button[name=个人打卡]" },
-      { "selector": ".checkin-btn:has(span:has-text(\"在校\"))", "waitMs": 500 },
-      { "selector": "role=button[name=提交]" }
+      { "selector": "text=个人打卡" },
+      { "selector": ".checkin-btn:has(span:text-is(\"在校\"))", "waitMs": 1000, "force": true },
+      { "selector": ".el-dialog__footer button:has-text(\"提交\")", "force": true }
     ],
-    "successSelector": "text=打卡成功"
+    "successSelector": "text=打卡成功",
+    "notInTimeWindowSelector": "text=当前不在打卡时间段内"
   },
   "leader": {
     "url": "/group/today",

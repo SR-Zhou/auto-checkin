@@ -17,6 +17,14 @@ test('isRecoverable should return true only for retryable recoverable error', ()
 });
 
 test('normalizeError should not mark unknown errors as retryable', () => {
-  const error = normalizeError(new Error('net::ERR_CONNECTION_RESET'));
+  const error = normalizeError(new Error('something unexpected'));
   assert.equal(isRecoverable(error), false);
+});
+
+test('normalizeError should mark transient errors as retryable', () => {
+  assert.equal(isRecoverable(normalizeError(new Error('net::ERR_CONNECTION_RESET'))), true);
+  assert.equal(isRecoverable(normalizeError(new Error('browserContext.newPage: Target page, context or browser has been closed'))), true);
+  const timeout = new Error('timeout');
+  timeout.name = 'TimeoutError';
+  assert.equal(isRecoverable(normalizeError(timeout)), true);
 });

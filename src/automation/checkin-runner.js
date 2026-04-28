@@ -115,15 +115,21 @@ async function waitCheckinOutcome({
   page,
   alreadyDoneSelector,
   successSelector,
+  notInTimeWindowSelector,
   timeoutMs,
 }) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const [isAlreadyDone, isSuccess] = await Promise.all([
+    const [isAlreadyDone, isSuccess, isTimeClosed] = await Promise.all([
       selectorVisible(page, alreadyDoneSelector, 400),
       successSelector ? selectorVisible(page, successSelector, 400) : Promise.resolve(false),
+      notInTimeWindowSelector ? selectorVisible(page, notInTimeWindowSelector, 400) : Promise.resolve(false),
     ]);
+
+    if (isTimeClosed) {
+      return 'time_window_closed';
+    }
 
     if (isAlreadyDone) {
       return 'already_done';
@@ -154,6 +160,7 @@ async function runCheckinStep({
   stepName,
   browserTimeoutMs,
   actionBufferMs,
+  screenshotDir,
 }) {
   await logger.info('checkin_step_navigating', { run_id: runId, step: stepName, url: siteNode.url });
   await gotoPage(page, siteNode.url, stepName);
@@ -169,10 +176,37 @@ async function runCheckinStep({
     }
 
     await expectVisible(page, action.selector, `${actionLabel}.selector`, browserTimeoutMs);
-    await page.click(action.selector);
+
+    if (action.force) {
+      const box = await page.locator(action.selector).first().boundingBox();
+      if (box) {
+        const x = box.x + box.width * 0.3 + Math.random() * box.width * 0.4;
+        const y = box.y + box.height * 0.3 + Math.random() * box.height * 0.4;
+        await page.mouse.move(x, y, { steps: 6 });
+        await sleep(100 + Math.floor(Math.random() * 150));
+        await page.mouse.click(x, y);
+      } else {
+        await page.locator(action.selector).first().click({ force: true });
+      }
+    } else {
+      await page.click(action.selector);
+    }
 
     if (action.confirmSelector && (await selectorVisible(page, action.confirmSelector, 1500))) {
-      await page.click(action.confirmSelector);
+      if (action.force) {
+        const box = await page.locator(action.confirmSelector).first().boundingBox();
+        if (box) {
+          const x = box.x + box.width * 0.3 + Math.random() * box.width * 0.4;
+          const y = box.y + box.height * 0.3 + Math.random() * box.height * 0.4;
+          await page.mouse.move(x, y, { steps: 6 });
+          await sleep(100 + Math.floor(Math.random() * 150));
+          await page.mouse.click(x, y);
+        } else {
+          await page.locator(action.confirmSelector).first().click({ force: true });
+        }
+      } else {
+        await page.click(action.confirmSelector);
+      }
     }
 
     if (action.waitForSelector) {
@@ -189,10 +223,30 @@ async function runCheckinStep({
     }
   }
 
+  await sleep(2000);
+
+  if (screenshotDir) {
+    const preOutcomeScreenshot = await captureFailureScreenshot({
+      page,
+      screenshotDir,
+      runId,
+      attempt: 0,
+      step: `${stepName}-before-outcome`,
+    });
+    if (preOutcomeScreenshot) {
+      await logger.info('checkin_step_screenshot', {
+        run_id: runId,
+        step: `${stepName}-before-outcome`,
+        screenshot: preOutcomeScreenshot,
+      });
+    }
+  }
+
   const outcome = await waitCheckinOutcome({
     page,
     alreadyDoneSelector: siteNode.alreadyDoneSelector,
     successSelector: siteNode.successSelector,
+    notInTimeWindowSelector: siteNode.notInTimeWindowSelector,
     timeoutMs: browserTimeoutMs,
   });
 
@@ -217,13 +271,24 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
+    args: ['--disable-dev-shm-usage'],
   });
   await logger.info('attempt_browser_launched', { run_id: runId, attempt });
 
   let page = null;
 
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext(
+      config.browser.mobile
+        ? {
+            viewport: { width: 412, height: 915 },
+            userAgent:
+              'Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36',
+            hasTouch: true,
+            isMobile: true,
+          }
+        : {},
+    );
     page = await context.newPage();
     page.setDefaultTimeout(config.browser.timeoutMs);
 
@@ -242,7 +307,12 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
       stepName: 'personal',
       browserTimeoutMs: config.browser.timeoutMs,
       actionBufferMs: config.browser.actionBufferMs,
+      screenshotDir: config.screenshotDir,
     });
+
+    if (personal.status === 'time_window_closed') {
+      return { personal, leader: { step: 'leader', status: 'skipped_time_window' } };
+    }
 
     const leader = await runCheckinStep({
       page,
@@ -252,6 +322,7 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
       stepName: 'leader',
       browserTimeoutMs: config.browser.timeoutMs,
       actionBufferMs: config.browser.actionBufferMs,
+      screenshotDir: config.screenshotDir,
     });
 
     return {
@@ -274,7 +345,7 @@ async function runSingleAttempt({ config, runId, attempt, logger }) {
 
     throw normalized;
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
 
@@ -286,7 +357,7 @@ export async function runCheckinWithRetries({
   const result = await executeWithRetry({
     runAttempt: ({ attempt }) => runSingleAttempt({ config, runId, attempt, logger }),
     isRecoverable,
-    maxAttempts: 1, // Fail immediately without retry
+    maxAttempts: config.retry.maxAttempts,
     backoffMs: () =>
       computeBackoffMs({
         minMs: config.retry.backoffMinMs,
@@ -304,6 +375,11 @@ export async function runCheckinWithRetries({
       screenshot_path: result.error?.screenshotPath,
     });
     return result;
+  }
+
+  if (result.result?.personal?.status === 'time_window_closed') {
+    await logger.info('run_time_window_closed', { run_id: runId });
+    return { ...result, status: 'time_window_closed' };
   }
 
   await logger.info('run_success', {
@@ -330,11 +406,22 @@ export async function checkCheckinCompleted({
   const browser = await chromium.launch({
     headless: config.browser.headless,
     slowMo: config.browser.slowMoMs,
+    args: ['--disable-dev-shm-usage'],
   });
   await logger.info('browser_launched', { run_id: runId });
 
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext(
+      config.browser.mobile
+        ? {
+            viewport: { width: 412, height: 915 },
+            userAgent:
+              'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+            hasTouch: true,
+            isMobile: true,
+          }
+        : {},
+    );
     const page = await context.newPage();
     page.setDefaultTimeout(config.browser.timeoutMs);
 
@@ -355,6 +442,6 @@ export async function checkCheckinCompleted({
       },
     };
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }

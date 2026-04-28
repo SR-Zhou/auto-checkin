@@ -29,8 +29,14 @@ export function normalizeError(error) {
 
   const msg = String(error?.message || 'Unknown error');
 
-  if (error?.name === 'TimeoutError' || msg.includes('net::ERR') || msg.includes('ECONNRESET')) {
-    return new RecoverableError(msg, error);
+  if (
+    error?.name === 'TimeoutError' ||
+    msg.includes('net::ERR') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('Target page, context or browser has been closed') ||
+    msg.includes('Browser has been closed')
+  ) {
+    return new RecoverableError(msg, error, { retryable: true });
   }
 
   return new RecoverableError(msg, error);

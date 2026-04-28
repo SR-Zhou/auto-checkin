@@ -63,6 +63,13 @@ export async function startService({ config, logger }) {
         run_id: runId,
         reason: 'run_success',
       });
+    } else if (result.status === 'time_window_closed') {
+      await logger.info('checkin_time_window_closed', { run_id: runId });
+
+      await logger.info('workflow_finished', {
+        run_id: runId,
+        reason: 'time_window_closed',
+      });
     } else {
       await logger.error('checkin_failed', {
         run_id: runId,

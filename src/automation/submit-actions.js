@@ -29,11 +29,14 @@ function normalizeAction(item, index, stepName) {
     waitMs = item.waitMs;
   }
 
+  const force = item.force === true;
+
   return {
     selector,
     confirmSelector,
     waitForSelector,
     waitMs,
+    force,
   };
 }
 
@@ -52,6 +55,7 @@ export function resolveSubmitActions(siteNode, stepName) {
         confirmSelector: asNonEmptyString(siteNode?.confirmSelector),
         waitForSelector: undefined,
         waitMs: undefined,
+        force: false,
       },
     ];
   }

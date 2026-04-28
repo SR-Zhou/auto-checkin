@@ -153,6 +153,7 @@ export async function buildConfig({ env = process.env, cwd = process.cwd() } = {
       timeoutMs: browserTimeoutMs,
       slowMoMs: readInt(env, 'BROWSER_SLOW_MO_MS', 0),
       actionBufferMs,
+      mobile: (env.MOBILE_EMULATION || 'false').toLowerCase() === 'true',
     },
   };
 }
